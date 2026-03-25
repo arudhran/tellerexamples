@@ -5,11 +5,11 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 // -------- Env vars --------
-var appId   = Environment.GetEnvironmentVariable("APP_ID");
-var env     = Environment.GetEnvironmentVariable("ENV") ?? "sandbox";
+var appId = Environment.GetEnvironmentVariable("APP_ID");
+var env = Environment.GetEnvironmentVariable("ENV") ?? "sandbox";
 var certPem = Environment.GetEnvironmentVariable("CERT");      // path to PEM cert
-var keyPem  = Environment.GetEnvironmentVariable("CERT_KEY");  // path to PEM private key
-var port    = Environment.GetEnvironmentVariable("PORT") ?? "8001";
+var keyPem = Environment.GetEnvironmentVariable("CERT_KEY");  // path to PEM private key
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8001";
 
 if (string.IsNullOrEmpty(appId))
 {
@@ -17,7 +17,7 @@ if (string.IsNullOrEmpty(appId))
     return;
 }
 if ((env.Equals("development", StringComparison.OrdinalIgnoreCase) ||
-     env.Equals("production",   StringComparison.OrdinalIgnoreCase)) &&
+     env.Equals("production", StringComparison.OrdinalIgnoreCase)) &&
     (string.IsNullOrEmpty(certPem) || string.IsNullOrEmpty(keyPem)))
 {
     Console.Error.WriteLine($"CERT and CERT_KEY must be set when ENV={env}");
@@ -38,11 +38,23 @@ builder.Services.AddSingleton<HttpMessageHandler>(_ =>
     };
 
     if (env.Equals("development", StringComparison.OrdinalIgnoreCase) ||
-        env.Equals("production",   StringComparison.OrdinalIgnoreCase))
+     env.Equals("production", StringComparison.OrdinalIgnoreCase))
     {
         var clientCert = X509Certificate2.CreateFromPemFile(certPem!, keyPem!);
+
+        if (OperatingSystem.IsWindows())
+        {
+            clientCert = X509CertificateLoader.LoadPkcs12(
+                clientCert.Export(X509ContentType.Pkcs12),
+                ReadOnlySpan<char>.Empty,
+                X509KeyStorageFlags.UserKeySet |
+                X509KeyStorageFlags.PersistKeySet |
+                X509KeyStorageFlags.Exportable);
+        }
+
         handler.ClientCertificates.Add(clientCert);
     }
+
 
     return handler;
 });
@@ -97,7 +109,7 @@ app.Map("/{**path}", async context =>
     var url = $"https://api.teller.io/{subpath}";
 
     var factory = context.RequestServices.GetRequiredService<IHttpClientFactory>();
-    var client  = factory.CreateClient("Upstream");
+    var client = factory.CreateClient("Upstream");
 
     // Build upstream request
     var upstreamReq = new HttpRequestMessage(new HttpMethod(context.Request.Method), url);
@@ -115,7 +127,7 @@ app.Map("/{**path}", async context =>
 
     // Forward JSON body for mutating methods
     if (HttpMethods.IsPost(context.Request.Method) ||
-        HttpMethods.IsPut (context.Request.Method) ||
+        HttpMethods.IsPut(context.Request.Method) ||
         HttpMethods.IsPatch(context.Request.Method))
     {
         context.Request.EnableBuffering();
