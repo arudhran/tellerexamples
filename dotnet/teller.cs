@@ -3,13 +3,33 @@ using System.Net.Http.Headers;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 
-// -------- Env vars --------
-var appId = Environment.GetEnvironmentVariable("APP_ID");
-var env = Environment.GetEnvironmentVariable("ENV") ?? "sandbox";
-var certPem = Environment.GetEnvironmentVariable("CERT");      // path to PEM cert
-var keyPem = Environment.GetEnvironmentVariable("CERT_KEY");  // path to PEM private key
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8001";
+var aspnetEnvironment =
+    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+    Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+var settingsFile = aspnetEnvironment?.ToLowerInvariant() switch
+{
+    "sandbox" => "sandbox.json",
+    "development" => "development.json",
+    "production" => "production.json",
+    _ => null
+};
+
+var fileConfig = settingsFile is null
+    ? null
+    : new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile(settingsFile, optional: true, reloadOnChange: false)
+        .Build();
+
+// -------- Env vars / profile config --------
+var appId = Environment.GetEnvironmentVariable("APP_ID") ?? fileConfig?["APP_ID"];
+var env = Environment.GetEnvironmentVariable("ENV") ?? fileConfig?["ENV"] ?? "sandbox";
+var certPem = Environment.GetEnvironmentVariable("CERT") ?? fileConfig?["CERT"];      // path to PEM cert
+var keyPem = Environment.GetEnvironmentVariable("CERT_KEY") ?? fileConfig?["CERT_KEY"];  // path to PEM private key
+var port = Environment.GetEnvironmentVariable("PORT") ?? fileConfig?["PORT"] ?? "8001";
 
 if (string.IsNullOrEmpty(appId))
 {
